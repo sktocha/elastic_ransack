@@ -6,8 +6,8 @@ module ElasticRansack
     attr_reader :options, :search_options, :model, :search_results, :sorts, :globalize
 
     delegate :results, :each, :each_with_index, :each_with_hit, :empty?, :size, :[], to: :search_results
-    delegate :total_entries, :per_page, :total_pages, :current_page, :previous_page, :next_page, :offset, :out_of_bounds?,
-             to: :search_results
+    delegate :total_entries, :per_page, :total_pages, :current_page, :previous_page, :next_page,
+      :offset, :out_of_bounds?, :records, to: :search_results
 
     alias_method :klass, :model
 
@@ -72,20 +72,22 @@ module ElasticRansack
         end
 
         if query_string.blank?
-          query = {match_all: {}}
+          # query = {match_all: {}}
+          query = {}
         else
           query = {query_string: {query: query_string.join(' ')}}
         end
 
         sort = sorts.map { |s| {s.name => s.dir} }
 
-        filter_query = {and: {filters: filters}}
+        query[:bool]= {filter: filters} if filters.present?
 
         per_page = @search_options[:per_page] || 50
         page = @search_options[:page].presence || 1
-        from = per_page.to_i * (page.to_i - 1)
+        # from = per_page.to_i * (page.to_i - 1)
 
-        __elasticsearch__.search query: query, filter: filter_query, sort: sort, size: per_page, from: from
+        es_options = {query: query, sort: sort, stored_fields: ['id']}
+        __elasticsearch__.search(es_options).paginate(per_page: per_page, page: page)
       end
     end
 
