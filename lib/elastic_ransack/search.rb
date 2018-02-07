@@ -86,7 +86,8 @@ module ElasticRansack
         page = @search_options[:page].presence || 1
         # from = per_page.to_i * (page.to_i - 1)
 
-        es_options = {query: query, sort: sort, stored_fields: ['id']}
+        es_options = {query: query, sort: sort}
+        es_options.merge!(_source: @search_options[:fields]) if @search_options[:fields].present?
         __elasticsearch__.search(es_options).paginate(per_page: per_page, page: page)
       end
     end
