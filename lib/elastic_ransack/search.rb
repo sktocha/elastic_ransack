@@ -60,7 +60,8 @@ module ElasticRansack
             query_string << attr_query.map { |q| "(#{q})" }.join(' OR ')
             next
           else
-            v = format_value(v)
+            field = k.sub(/_(#{ElasticRansack.predicates.map(&:name).join('|')})\z/, '')
+            v = format_value(v, detect_field_type(field))
           end
 
           ElasticRansack.predicates.each do |predicate|
@@ -71,23 +72,22 @@ module ElasticRansack
           end
         end
 
-        if query_string.blank?
-          # query = {match_all: {}}
-          query = {}
-        else
-          query = {query_string: {query: query_string.join(' ')}}
-        end
-
         sort = sorts.map { |s| {s.name => s.dir} }
 
-        query[:bool]= {filter: filters} if filters.present?
+        query = {bool: {}}
+        if query_string.present?
+          query[:bool][:must] = {query_string: {query: query_string.map{|part| "(#{part})"}.join(' AND ')}}
+        end
+        query[:bool][:filter] = filters if filters.present?
+        query.delete(:bool) if query[:bool].blank?
 
         per_page = @search_options[:per_page] || 50
         page = @search_options[:page].presence || 1
-        # from = per_page.to_i * (page.to_i - 1)
 
         es_options = {query: query, sort: sort}
+        es_options.delete(:query) if query.blank?
         es_options.merge!(_source: @search_options[:fields]) if @search_options[:fields].present?
+
         __elasticsearch__.search(es_options).paginate(per_page: per_page, page: page)
       end
     end
@@ -96,14 +96,36 @@ module ElasticRansack
       model.human_attribute_name(args.first)
     end
 
-    def format_value(v)
-      if v =~ DATETIME_REGEXP
+    def format_value(v, type = nil)
+      if type == :boolean
+        if v == 1 || v == '1'
+          true
+        elsif v == 0 || v == ''
+          false
+        else
+          v
+        end
+      elsif v =~ DATETIME_REGEXP
         ElasticRansack.datetime_parser.call(v)
       elsif v =~ DATE_REGEXP
         ElasticRansack.datetime_parser.call(v).to_date
       else
         v
       end
+    end
+
+    def detect_field_type(field)
+      [field.to_sym, field.to_s].each do |formatted_field|
+        r = field_mapping(formatted_field)
+        type = r.try(:[], :type) || r.try(:type)
+        return type if type
+      end
+      nil
+    end
+
+    def field_mapping(field)
+      try(:mapping).try(:instance_variable_get, :@mapping).try(:[], field) ||
+        try(:model).try(:columns_hash).try(:[], field)
     end
 
     def method_missing(*args, &block)
