@@ -76,7 +76,7 @@ module ElasticRansack
 
         query = {bool: {}}
         if query_string.present?
-          query[:bool][:must] = {query_string: {query: query_string.map{|part| "(#{part})"}.join(' AND ')}}
+          query[:bool][:must] = {query_string: {query: query_string.map{|part| "(#{part})"}.join(' OR ')}}
         end
         query[:bool][:filter] = filters if filters.present?
         query.delete(:bool) if query[:bool].blank?
@@ -120,7 +120,7 @@ module ElasticRansack
         type = r.try(:[], :type) || r.try(:type)
         return type if type
       end
-      nil
+      :boolean if field.start_with?('is_')
     end
 
     def field_mapping(field)
