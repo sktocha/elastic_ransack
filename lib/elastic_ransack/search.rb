@@ -46,7 +46,7 @@ module ElasticRansack
           v = ElasticRansack.normalize_integer_vals(k, v)
 
           if k == 'q_cont' || k == 'q_eq'
-            query_string << "#{v.lucene_escape}" if v.present?
+            query_string << "#{v}" if v.present?
             next
           end
 
