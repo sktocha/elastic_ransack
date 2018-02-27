@@ -13,7 +13,7 @@ module ElasticRansack
   self.datetime_parser = Time.method(:parse)
 
   BASE_PREDICATES = [
-      ['not_eq', {query: proc { |attr, v| {not: {term: {attr => v}} }}}],
+      ['not_eq', {query: proc { |attr, v| {bool: {must_not: {term: {attr => v}} }}}}],
       ['eq', {query: proc { |attr, v| {term: {attr => v}} }}],
       ['in', {query: proc { |attr, v| {terms: {attr => ElasticRansack.val_to_array(v)}} }}],
       ['in_all', {query: proc { |attr, v| {terms: {attr => ElasticRansack.val_to_array(v), execution: 'and'}} }}],
@@ -21,8 +21,20 @@ module ElasticRansack
       ['lt', {query: proc { |attr, v| {range: {attr => {lt: v}}} }}],
       ['gteq', {query: proc { |attr, v| {range: {attr => {gte: v}}} }}],
       ['lteq', {query: proc { |attr, v| {range: {attr => {lte: v}}} }}],
-      ['null', {query: proc { |attr| {bool: {must_not: {exists: {field: attr}} }}}}],
-      ['present', {query: proc { |attr| {exists: {field: attr}} }}]
+      ['null', {query: proc { |attr, v|
+        if v == '1' || v == 1 || v == true
+          {bool: {must_not: {exists: {field: attr}} }}
+        else
+          {exists: {field: attr}}
+        end
+      }}],
+      ['present', {query: proc { |attr, v|
+        if v == '1' || v == 1 || v == true
+          {exists: {field: attr}}
+        else
+          {bool: {must_not: {exists: {field: attr}} }}
+        end
+      }}]
   ]
 
 
