@@ -100,7 +100,7 @@ module ElasticRansack
       if type == :boolean
         if v == 1 || v == '1'
           true
-        elsif v == 0 || v == ''
+        elsif v == 0 || v == '0'
           false
         else
           v
