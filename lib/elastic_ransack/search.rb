@@ -124,7 +124,7 @@ module ElasticRansack
     end
 
     def field_mapping(field)
-      try(:mapping).try(:instance_variable_get, :@mapping).try(:[], field) ||
+      try(:model).try(:mapping).try(:instance_variable_get, :@mapping).try(:[], field) ||
         try(:model).try(:columns_hash).try(:[], field)
     end
 
