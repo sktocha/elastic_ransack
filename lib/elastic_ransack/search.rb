@@ -60,16 +60,20 @@ module ElasticRansack
             query_string << attr_query.map { |q| "(#{q})" }.join(' OR ')
             next
           else
-            field = k.sub(/_(#{ElasticRansack.predicates.map(&:name).join('|')})\z/, '')
-            v = format_value(v, detect_field_type(field))
-          end
-
-          ElasticRansack.predicates.each do |predicate|
-            if k =~ predicate.regexp
-              filters << predicate.query.call($1, v)
-              break
+            key_data = parse_key(k)
+            if key_data.present?
+              v = format_value(v, detect_field_type(key_data[:fields].first))
+              if key_data[:fields].size > 1
+                filters << {bool: {minimum_should_match: 1, should: []}}
+                key_data[:fields].each do |field|
+                  filters.last[:bool][:should] << key_data[:predicate].query.call(field, v)
+                end
+              else
+                filters << key_data[:predicate].query.call(key_data[:fields].first, v)
+              end
             end
           end
+
         end
 
         sort = sorts.map { |s| {s.name => s.dir} }
@@ -90,6 +94,13 @@ module ElasticRansack
 
         __elasticsearch__.search(es_options).paginate(per_page: per_page, page: page)
       end
+    end
+
+    def parse_key(k)
+      raw_key = k.match(ElasticRansack.predicates.map(&:regexp).join('|')).captures.compact.first.to_s
+      predicate = ElasticRansack.predicates.find{ |p| k.sub(raw_key, '')[1..-1] == p.name }
+      return {} unless predicate || raw_key.present?
+      {predicate: predicate, fields: raw_key.split('_or_')}
     end
 
     def translate(*args)
