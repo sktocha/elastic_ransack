@@ -41,7 +41,7 @@ module ElasticRansack
         query_string = []
         filters = []
 
-        options.each do |k, v|
+        options.except('m').each do |k, v|
           next if v.blank?
           v = ElasticRansack.normalize_integer_vals(k, v)
 
@@ -60,18 +60,17 @@ module ElasticRansack
             query_string << attr_query.map { |q| "(#{q})" }.join(' OR ')
             next
           else
-            key_data = parse_key(k)
-            if key_data.present?
-              v = format_value(v, detect_field_type(key_data[:fields].first))
-              if key_data[:fields].size > 1
-                filters << {bool: {minimum_should_match: 1, should: []}}
-                key_data[:fields].each do |field|
-                  filters.last[:bool][:should] << key_data[:predicate].query.call(field, v)
-                end
-              else
-                filters << key_data[:predicate].query.call(key_data[:fields].first, v)
+
+            if k == 'g'
+              filters << {bool: {minimum_should_match: 1, should: []}}
+              v.each do |group|
+                filters.first[:bool][:should] << {bool: {filter: group.map { |kk, vv| build_filters(kk.to_s, vv) }}}
               end
+            else
+              filters << build_filters(k, v)
+              filters.flatten!
             end
+
           end
 
         end
@@ -94,6 +93,23 @@ module ElasticRansack
 
         __elasticsearch__.search(es_options).paginate(per_page: per_page, page: page)
       end
+    end
+
+    def build_filters(k, v)
+      filters = []
+      key_data = parse_key(k)
+      if key_data.present?
+        v = format_value(v, detect_field_type(key_data[:fields].first))
+        if key_data[:fields].size > 1
+          filters << {bool: {minimum_should_match: 1, should: []}}
+          key_data[:fields].each do |field|
+            filters.last[:bool][:should] << key_data[:predicate].query.call(field, v)
+          end
+        else
+          filters << key_data[:predicate].query.call(key_data[:fields].first, v)
+        end
+      end
+      filters
     end
 
     def parse_key(k)
